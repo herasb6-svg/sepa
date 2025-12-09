@@ -1,6 +1,6 @@
 const fs = require("fs");
 
-const TOTAL_EMPLEADOS = 1;
+const TOTAL_EMPLEADOS = 8797;
 const YEAR = 2025;
 
 const AREAS = ["OFICINA", "PRODUCCION", "INVENTARIO"];

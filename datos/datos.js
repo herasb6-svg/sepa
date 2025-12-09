@@ -1,7 +1,7 @@
 const axios = require("axios");
 
 const API_BASE = "http://localhost:3000/api/dsm43";
-const TOTAL_EMPLEADOS = 1;
+const TOTAL_EMPLEADOS = 8797;
 const YEAR = 2025;
 const EMPLEADOS = [];
 
@@ -80,21 +80,23 @@ const registerA_P = async ( fecha, empleado ) => {
     const fechaSalida = new Date(salidaISO);
     const diferenciaEnMilisegundos = fechaSalida - fechaEntrada;
     const diferenciaEnHoras = diferenciaEnMilisegundos / 3600000;
+    
     const register_asistencia = await safePost(`${API_BASE}/empleados/create-asistencia`, {
+        id_empleado: empleado,
         fecha,
         horaEntrada: entradaISO,
         horaSalida: salidaISO,
-        entrada: entradaISO,
-        salida: salidaISO,
-        status: random(STATUS_ASISTENCIA),
-        empleado: empleado,
         horasTrabajadas: diferenciaEnHoras,
+        turno: random(TURNOS),
+        estatus: random(STATUS_ASISTENCIA),
+        puntual: true
     });
+    
     const register_produccion = await safePost(`${API_BASE}/empleados/create-produccion`, {
+      id_empleado: empleado,
       fecha,
       turno: random(TURNOS),
-      unidadesProducidas: Math.floor(Math.random() * 3000),
-      empleado: empleado
+      unidadesProducidas: Math.floor(Math.random() * 3000)
     });
     return {register_asistencia, register_produccion};
 }

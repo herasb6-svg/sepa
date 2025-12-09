@@ -4,7 +4,7 @@ import { Repository } from 'typeorm';
 import { Empleado } from './entities/empleado.entity';
 import { RegistroAsistencia } from './entities/registro-asistencia.entity';
 import { RegistroProduccion } from './entities/registro-produccion.entity';
-import { CreateEmpleado } from './dto/create-empleado.dto';
+import { CreateEmpleadoSimple } from './dto/create-empleado-simple.dto';
 import { UpdateEmpleado } from './dto/update-empleado.dto';
 import { CreateRegistroAsistencia } from './dto/create-registro-asistencia.dto';
 import { CreateRegistroProduccion } from './dto/create-registro-produccion.dto';
@@ -62,17 +62,23 @@ export class EmpleadosService {
         return await this.repoProduccion.save( register );
     }
 
-    async createEmpleado(data: CreateEmpleado) {
+    async createEmpleado(data: CreateEmpleadoSimple) {
         const register = this.repoEmpleado.create( data );
         return await this.repoEmpleado.save( register );
     }
 
     async findAllEmpleado(page: number = 1, limit: number = 10, baseUrl: string) {
+        // Ensure page is at least 1 to avoid negative offset
+        const currentPage = Math.max(1, Number(page) || 1);
+        const take = Math.max(1, Number(limit) || 10);
+        const skip = (currentPage - 1) * take;
+
+        console.log(`Fetching page ${currentPage} with limit ${take}, skip ${skip}`);
 
         const [data, total] = await this.repoEmpleado
             .createQueryBuilder("e")
-            .skip( (page - 1) * limit )
-            .take(limit)
+            .skip(skip)
+            .take(take)
             .orderBy("e.id_empleado", "ASC")
             .getManyAndCount();
 
@@ -92,14 +98,14 @@ export class EmpleadosService {
                 .getMany();
         }
 
-        const totalPages = Math.ceil( total/limit );
+        const totalPages = Math.max(1, Math.ceil(total / take));
 
-        const next = (page < totalPages)
-            ? `${baseUrl}?page=${Number(page) + 1}&limit=${limit}`
+        const next = (currentPage < totalPages)
+            ? `${baseUrl}?page=${currentPage + 1}&limit=${take}`
             : null;
 
-        const prev = (page > 1)
-            ? `${baseUrl}?page=${Number(page) - 1}&limit=${limit}`
+        const prev = (currentPage > 1)
+            ? `${baseUrl}?page=${currentPage - 1}&limit=${take}`
             : null;
 
         return {
@@ -107,8 +113,8 @@ export class EmpleadosService {
             totalPages,
             prev,
             next,
-            page,
-            limit,
+            page: currentPage,
+            limit: take,
             data,
         };
     }
@@ -122,10 +128,7 @@ export class EmpleadosService {
         return empleado;
     }
 
-    async updateEmpleado(id_empleado: number, data: UpdateEmpleado) {
-        return await this.repoEmpleado.update(id_empleado, data);
-    }
-
+    
     async removeEmpleado(id_empleado: number) {
         return await this.repoEmpleado.delete(id_empleado);
     }

@@ -3,13 +3,12 @@ import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert,
 import { Picker } from '@react-native-picker/picker';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { Empleado, createEmpleado, updateEmpleado, getEmpleadoById } from '../../api/empleadoApi';
+import { Empleado, createEmpleado } from '../../api/empleadoApi';
 
-type Area = 'PRODUCCION' | 'ALMACEN' | 'ADMINISTRACION' | 'CALIDAD';
-type Turno = 'MATUTINO' | 'VESPERTINO' | 'NOCTURNO';
+type Area = 'OFICINA' | 'PRODUCCION' | 'INVENTARIO';
+type Turno = 'MATUTINO' | 'VESPERTINO' | 'NOCTURNO' | 'MIXTO';
 
 interface EmpleadoFormData extends Omit<Empleado, 'id_empleado'> {
-  id_empleado?: number;
 }
 
 type RootStackParamList = {
@@ -23,9 +22,7 @@ type NavigationProp = {
 };
 
 const EmpleadoFormScreen = () => {
-  const route = useRoute<any>();
   const navigation = useNavigation<NavigationProp>();
-  const isEdit = route.params?.empleado || route.params?.empleadoId;
   
   const [empleado, setEmpleado] = useState<EmpleadoFormData>({
     nombre: '',
@@ -38,37 +35,11 @@ const EmpleadoFormScreen = () => {
   });
   
   const [salarioInput, setSalarioInput] = useState('');
-  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    const loadEmpleado = async () => {
-      if (route.params?.empleado) {
-        const emp = route.params.empleado as EmpleadoFormData;
-        setEmpleado(emp);
-        setSalarioInput(emp.salarioDiario.toString());
-      } else if (route.params?.empleadoId) {
-        setLoading(true);
-        try {
-          const empleadoData = await getEmpleadoById(route.params.empleadoId);
-          setEmpleado(empleadoData);
-          setSalarioInput(empleadoData.salarioDiario.toString());
-        } catch (error) {
-          console.error('Error loading empleado:', error);
-          Alert.alert('Error', 'No se pudo cargar la información del empleado');
-          navigation.goBack();
-        } finally {
-          setLoading(false);
-        }
-      }
-    };
-
-    loadEmpleado();
-  }, [route.params, navigation]);
-
   const handleSubmit = async () => {
-    if (!empleado.nombre.trim() || !empleado.apellido_p.trim() || !empleado.salarioDiario) {
-      Alert.alert('Error', 'Por favor complete todos los campos obligatorios');
+    if (!empleado.nombre.trim() || !empleado.apellido_p.trim()) {
+      Alert.alert('Error', 'Por favor completa los campos obligatorios');
       return;
     }
 
@@ -79,20 +50,21 @@ const EmpleadoFormScreen = () => {
 
     setSaving(true);
     try {
-      const empleadoData = {
-        ...empleado,
-        salarioDiario: Number(empleado.salarioDiario),
+      const datosParaEnviar = { 
+        nombre: empleado.nombre || '',
+        apellido_p: empleado.apellido_p || '',
+        apellido_m: empleado.apellido_m || '',
+        area: empleado.area || 'PRODUCCION',
+        turno: empleado.turno || 'MATUTINO',
+        salarioDiario: Number(empleado.salarioDiario) || 0,
+        activo: empleado.activo !== undefined ? empleado.activo : true
       };
 
-      if (isEdit && empleado.id_empleado) {
-        await updateEmpleado(empleado.id_empleado, empleadoData);
-      } else {
-        await createEmpleado(empleadoData);
-      }
+      await createEmpleado(datosParaEnviar);
       
       Alert.alert(
         'Éxito',
-        isEdit ? 'Empleado actualizado correctamente' : 'Empleado creado correctamente',
+        'Empleado creado correctamente',
         [
           {
             text: 'OK',
@@ -108,14 +80,7 @@ const EmpleadoFormScreen = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#0000ff" />
-      </View>
-    );
-  }
-
+  
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -123,7 +88,7 @@ const EmpleadoFormScreen = () => {
           <Icon name="arrow-back" size={24} color="#2196F3" />
         </TouchableOpacity>
         <Text style={styles.title}>
-          {isEdit ? 'Editar Empleado' : 'Nuevo Empleado'}
+          Nuevo Empleado
         </Text>
         <View style={{ width: 24 }} />
       </View>
@@ -166,14 +131,13 @@ const EmpleadoFormScreen = () => {
           <Text style={styles.label}>Área</Text>
           <View style={styles.pickerContainer}>
             <Picker<Area>
-              selectedValue={empleado.area}
+              selectedValue={empleado.area as Area}
               onValueChange={(itemValue: Area) => setEmpleado({ ...empleado, area: itemValue })}
               style={styles.picker}
             >
               <Picker.Item label="Producción" value="PRODUCCION" />
-              <Picker.Item label="Almacén" value="ALMACEN" />
-              <Picker.Item label="Administración" value="ADMINISTRACION" />
-              <Picker.Item label="Calidad" value="CALIDAD" />
+              <Picker.Item label="Oficina" value="OFICINA" />
+              <Picker.Item label="Inventario" value="INVENTARIO" />
             </Picker>
           </View>
         </View>
@@ -182,13 +146,14 @@ const EmpleadoFormScreen = () => {
           <Text style={styles.label}>Turno</Text>
           <View style={styles.pickerContainer}>
             <Picker<Turno>
-              selectedValue={empleado.turno}
+              selectedValue={empleado.turno as Turno}
               onValueChange={(itemValue: Turno) => setEmpleado({ ...empleado, turno: itemValue })}
               style={styles.picker}
             >
               <Picker.Item label="Matutino" value="MATUTINO" />
               <Picker.Item label="Vespertino" value="VESPERTINO" />
               <Picker.Item label="Nocturno" value="NOCTURNO" />
+              <Picker.Item label="Mixto" value="MIXTO" />
             </Picker>
           </View>
         </View>
@@ -239,7 +204,7 @@ const EmpleadoFormScreen = () => {
             <ActivityIndicator color="#fff" />
           ) : (
             <Text style={styles.saveButtonText}>
-              {isEdit ? 'Actualizar' : 'Guardar'}
+              Guardar
             </Text>
           )}
         </TouchableOpacity>
@@ -249,13 +214,7 @@ const EmpleadoFormScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f5f5f5',
-  },
-  container: {
+    container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
     padding: 16,

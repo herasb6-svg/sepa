@@ -13,17 +13,40 @@ export interface Empleado {
   activo: boolean;
 }
 
-export const getEmpleados = async (): Promise<Empleado[]> => {
+export const getEmpleados = async (limit: number = 20, page: number = 1): Promise<Empleado[]> => {
   try {
-    const response = await api.get(ENDPOINT);
-    // Asegurarse de que siempre devolvamos un array
+    console.log(`Haciendo petición a ${ENDPOINT}?page=${page}&limit=${limit}`);
+    
+    // Agregar timeout para evitar que la petición se quede colgada
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 segundos
+
+    const response = await api.get(ENDPOINT, {
+      params: {
+        page,
+        limit
+      },
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+    
+    console.log(`Respuesta de API - Página ${page}, Mostrando ${limit} empleados:`, response.data);
+    
+    // La API devuelve directamente el array de empleados
     if (Array.isArray(response.data)) {
+      console.log('Empleados recibidos:', response.data.length);
       return response.data;
-    } else if (response.data && typeof response.data === 'object') {
-      // Si la respuesta es un objeto, intentar extraer un array de alguna propiedad
-      const possibleArray = Object.values(response.data).find(Array.isArray);
-      return possibleArray || [];
     }
+    
+    // Si no es un array, verificar si hay una propiedad 'data' que contenga el array
+    if (response.data && typeof response.data === 'object' && 'data' in response.data) {
+      const empleados = response.data.data || [];
+      console.log('Empleados extraídos de data:', empleados.length);
+      return empleados;
+    }
+    
+    console.log('Formato de respuesta inesperado, devolviendo array vacío');
     return [];
   } catch (error: unknown) {
     console.error('Error fetching empleados:', error);
@@ -33,6 +56,11 @@ export const getEmpleados = async (): Promise<Empleado[]> => {
       const axiosError = error as { response?: { data?: any, status?: number } };
       console.log('Response data:', axiosError.response?.data);
       console.log('Response status:', axiosError.response?.status);
+    }
+    
+    // Si es un error de timeout, indicarlo específicamente
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.error('La petición excedió el tiempo límite (30 segundos)');
     }
     
     // Devolver un array vacío en caso de error para evitar que la aplicación se rompa
@@ -60,15 +88,6 @@ export const createEmpleado = async (empleado: Omit<Empleado, 'id_empleado'>): P
   }
 };
 
-export const updateEmpleado = async (id: number, empleado: Partial<Empleado>): Promise<Empleado> => {
-  try {
-    const response = await api.patch(`${ENDPOINT}/${id}`, empleado);
-    return response.data;
-  } catch (error) {
-    console.error('Error updating empleado:', error);
-    throw error;
-  }
-};
 
 export const deleteEmpleado = async (id: number): Promise<void> => {
   try {

@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { json, urlencoded } from 'body-parser';
 import { networkInterfaces } from 'os';
+import { ValidationPipe } from '@nestjs/common';
 
 const getLocalIp = () =>
   Object.values(networkInterfaces())
@@ -22,6 +23,16 @@ const capibara = async() => {
     app.use(json({limit: "300mb"}));
     app.use(urlencoded({limit: "300mb", extended: true}));
     app.setGlobalPrefix("api/dsm43");
+    
+    // Agregar ValidationPipe global
+    app.useGlobalPipes(
+        new ValidationPipe({
+            whitelist: true,
+            forbidNonWhitelisted: true,
+            transform: true,
+        })
+    );
+    
     await app.listen(3000);
     console.log(`API: http://${getLocalIp()}:3000`);
 }

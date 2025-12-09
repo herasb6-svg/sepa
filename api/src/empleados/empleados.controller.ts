@@ -1,7 +1,6 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete, ValidationPipe, Query, Req } from '@nestjs/common';
 import { EmpleadosService } from './empleados.service';
-import { CreateEmpleado } from './dto/create-empleado.dto';
-import { UpdateEmpleado } from './dto/update-empleado.dto';
+import { CreateEmpleadoSimple } from './dto/create-empleado-simple.dto';
 import * as express from 'express';
 import { CreateRegistroAsistencia } from './dto/create-registro-asistencia.dto';
 import { CreateRegistroProduccion } from './dto/create-registro-produccion.dto';
@@ -11,17 +10,17 @@ export class EmpleadosController {
     constructor(private readonly empleadosService: EmpleadosService) {}
 
     @Post()
-    createEmpleado(@Body( new ValidationPipe() ) data: CreateEmpleado) {
+    createEmpleado(@Body() data: CreateEmpleadoSimple) {
         return this.empleadosService.createEmpleado(data);
     }
 
     @Post("create-asistencia")
-    asistencia(@Body( new ValidationPipe() ) data: CreateRegistroAsistencia) {
+    asistencia(@Body() data: CreateRegistroAsistencia) {
         return this.empleadosService.createRegistroAsistencia(data);
     }
 
     @Post("create-produccion")
-    produccion(@Body( new ValidationPipe() ) data: CreateRegistroProduccion) {
+    produccion(@Body() data: CreateRegistroProduccion) {
         return this.empleadosService.createRegistroProduccion(data);
     }
 
@@ -87,11 +86,7 @@ export class EmpleadosController {
         return this.empleadosService.findOneEmpleado(id_empleado);
     }
 
-    @Patch(':id_empleado')
-    update(@Param('id_empleado') id_empleado: number, @Body( new ValidationPipe() ) data: UpdateEmpleado) {
-        return this.empleadosService.updateEmpleado(id_empleado, data);
-    }
-
+    
     @Delete(':id_empleado')
     remove(@Param('id_empleado') id_empleado: number) {
         return this.empleadosService.removeEmpleado(id_empleado);

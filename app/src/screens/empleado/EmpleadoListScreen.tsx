@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, ScrollView, Dimensions } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Dimensions, FlatList, ActivityIndicator } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { StackScreenProps } from '@react-navigation/stack';
 import { RootEmpleadoNavigator } from '../../navigator/EmpleadoNavigator';
 import { getEmpleados, deleteEmpleado } from '../../api/empleadoApi';
@@ -11,16 +12,69 @@ interface Props extends StackScreenProps<RootEmpleadoNavigator, 'EmpleadoListScr
 export const EmpleadoListScreen = ({ navigation }: Props) => {
   const [empleados, setEmpleados] = useState<Empleado[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  
+  const BATCH_SIZE = 20; // Número fijo de empleados por carga
 
-  const loadEmpleados = async () => {
-    try {
-      const data = await getEmpleados();
-      setEmpleados(data);
-      setLoading(false);
-    } catch (error) {
-      console.error('Error loading empleados:', error);
-      setLoading(false);
+  const loadEmpleados = async (isInitialLoad = true) => {
+    if (isInitialLoad) {
+      setLoading(true);
+      setEmpleados([]);
+      setPage(1);
+    } else {
+      setLoadingMore(true);
     }
+    
+    try {
+      // Calculate the offset based on current page
+      const offset = isInitialLoad ? 0 : (page - 1) * BATCH_SIZE;
+      
+      // Get employees with pagination parameters
+      const response = await getEmpleados(BATCH_SIZE, offset);
+      
+      // If it's the first load, set the employees directly
+      // Otherwise, append the new employees to the existing list
+      setEmpleados(prev => isInitialLoad ? response : [...prev, ...response]);
+      
+      // If we get fewer items than requested, there are no more items to load
+      setHasMore(response.length === BATCH_SIZE);
+      
+      // Only increment page if we're loading more (not initial load)
+      if (!isInitialLoad) {
+        setPage(prev => prev + 1);
+      }
+      
+    } catch (error) {
+      console.error('Error cargando empleados:', error);
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
+  };
+  
+  const handleLoadMore = () => {
+    if (!loading && !loadingMore && hasMore) {
+      loadEmpleados(false);
+    }
+  };
+  
+  // Reset and reload when the screen comes into focus
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      loadEmpleados(true);
+    });
+    
+    // Initial load
+    loadEmpleados(true);
+    
+    return unsubscribe;
+  }, [navigation]);
+  
+  const handleRefresh = () => {
+    setPage(1);
+    loadEmpleados(true);
   };
 
   useEffect(() => {
@@ -57,10 +111,13 @@ export const EmpleadoListScreen = ({ navigation }: Props) => {
   };
 
   const renderItem = ({ item }: { item: Empleado }) => (
-    <View style={styles.card}>
+    <TouchableOpacity 
+        style={styles.card}
+        onPress={() => navigation.navigate('EmpleadoDetailScreen', { empleado: item })}
+      >
       <View style={styles.cardHeader}>
         <View style={styles.avatar}>
-          <Icon name="person" size={40} color="#fff" />
+          <Icon name="person" size={40} color="#E0E1DD" />
         </View>
         <View style={styles.headerText}>
           <Text style={styles.cardTitle}>
@@ -72,34 +129,27 @@ export const EmpleadoListScreen = ({ navigation }: Props) => {
       
       <View style={styles.cardBody}>
         <View style={styles.detailRow}>
-          <Icon name="work" size={20} color="#666" />
+          <Icon name="work" size={20} color="#778DA9" />
           <Text style={styles.detailText}>{item.area}</Text>
         </View>
         <View style={styles.detailRow}>
-          <Icon name="schedule" size={20} color="#666" />
+          <Icon name="schedule" size={20} color="#778DA9" />
           <Text style={styles.detailText}>{item.turno}</Text>
         </View>
         <View style={styles.detailRow}>
-          <Icon name="attach-money" size={20} color="#666" />
+          <Icon name="attach-money" size={20} color="#778DA9" />
           <Text style={styles.detailText}>
-            ${typeof item.salarioDiario === 'number' ? item.salarioDiario.toFixed(2) : '0.00'}
+            ${item.salarioDiario ? (typeof item.salarioDiario === 'number' ? item.salarioDiario.toFixed(2) : parseFloat(item.salarioDiario).toFixed(2)) : '0.00'}
           </Text>
         </View>
       </View>
       
       <View style={styles.cardFooter}>
-        <TouchableOpacity 
-          style={styles.iconButton}
-          onPress={() => navigation.navigate('EmpleadoFormScreen', { id: item.id_empleado.toString() })}
-        >
-          <Icon name="edit" size={20} color="#4CAF50" />
-        </TouchableOpacity>
-        
         <View style={styles.statusBadge}>
           <View 
             style={[
               styles.statusDot, 
-              { backgroundColor: item.activo ? '#4CAF50' : '#F44336' }
+              { backgroundColor: item.activo ? '#415A77' : '#FF4444' }
             ]} 
           />
           <Text style={styles.statusText}>
@@ -111,45 +161,67 @@ export const EmpleadoListScreen = ({ navigation }: Props) => {
           style={styles.iconButton}
           onPress={() => handleDelete(item.id_empleado)}
         >
-          <Icon name="delete" size={20} color="#F44336" />
+          <Icon name="delete" size={20} color="#FF4444" />
         </TouchableOpacity>
       </View>
-    </View>
+    </TouchableOpacity>
   );
+
+  // Render footer with loading indicator when loading more items
+  const renderFooter = () => {
+    if (!loadingMore) return null;
+    
+    return (
+      <View style={styles.loadingMore}>
+        <ActivityIndicator size="small" color="#6366F1" />
+      </View>
+    );
+  };
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Lista de Empleados</Text>
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={() => navigation.navigate('EmpleadoFormScreen', { id: undefined })}
-        >
-          <Icon name="person-add" size={20} color="#fff" />
-          <Text style={styles.addButtonText}> Nuevo Empleado</Text>
-        </TouchableOpacity>
+        <Text style={styles.title}>Empleados</Text>
+        <View style={styles.controlsContainer}>
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={() => navigation.navigate('EmpleadoFormScreen', { id: undefined })}
+          >
+            <Icon name="person-add" size={20} color="#E0E1DD" />
+            <Text style={styles.addButtonText}> Nuevo</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {loading ? (
-        <View style={styles.emptyContainer}>
-          <Text>Cargando empleados...</Text>
+      {loading && empleados.length === 0 ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#6366F1" />
+          <Text style={styles.loadingText}>Cargando empleados...</Text>
         </View>
       ) : empleados.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Icon name="people-outline" size={60} color="#ccc" />
+          <Icon name="people-outline" size={60} color="#778DA9" />
           <Text style={styles.emptyText}>No hay empleados registrados</Text>
           <Text style={styles.emptySubtext}>Presiona el botón para agregar uno nuevo</Text>
         </View>
       ) : (
-        <ScrollView style={styles.scrollView}>
-          <View style={styles.cardsContainer}>
-            {empleados.map((empleado) => (
-              <View key={empleado.id_empleado.toString()}>{
-                renderItem({ item: empleado } as { item: Empleado })
-              }</View>
-            ))}
-          </View>
-        </ScrollView>
+        <FlatList
+          data={empleados}
+          renderItem={renderItem}
+          keyExtractor={(item, index) => `${item.id_empleado}-${index}`}
+          style={styles.scrollView}
+          contentContainerStyle={styles.cardsContainer}
+          onEndReached={handleLoadMore}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={renderFooter}
+          onRefresh={handleRefresh}
+          refreshing={loading && !loadingMore}
+          removeClippedSubviews={true}
+          maxToRenderPerBatch={10}
+          updateCellsBatchingPeriod={50}
+          initialNumToRender={20}
+          windowSize={21}
+        />
       )}
     </View>
   );
@@ -161,138 +233,164 @@ const CARD_WIDTH = width * 0.9; // 90% del ancho de la pantalla
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#0D1B2A',
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    paddingTop: 60,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+    backgroundColor: '#1B263B',
+    borderBottomWidth: 2,
+    borderBottomColor: '#415A77',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 10,
   },
-  title: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#333',
+  controlsContainer: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 15,
   },
   addButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#4CAF50',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-    elevation: 2,
+    backgroundColor: '#415A77',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 25,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    elevation: 8,
+    alignSelf: 'center',
   },
   addButtonText: {
-    color: 'white',
-    fontWeight: '600',
-    marginLeft: 5,
+    color: '#E0E1DD',
+    fontWeight: '700',
+    marginLeft: 8,
+    fontSize: 14,
   },
   scrollView: {
     flex: 1,
+    width: '100%',
+    paddingTop: 10,
+  },
+  loadingMore: {
+    paddingVertical: 20,
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 10,
+    color: '#94A3B8',
+    fontSize: 16,
   },
   cardsContainer: {
-    padding: 16,
-    alignItems: 'center',
+    padding: 20,
   },
   card: {
     width: CARD_WIDTH,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
+    backgroundColor: '#1B263B',
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 20,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 12,
+    borderWidth: 2,
+    borderColor: '#415A77',
   },
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 16,
   },
   avatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#4CAF50',
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: '#415A77',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 16,
+    borderWidth: 3,
+    borderColor: '#778DA9',
   },
   headerText: {
     flex: 1,
   },
   cardTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 2,
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#E0E1DD',
+    marginBottom: 5,
   },
   cardSubtitle: {
-    fontSize: 14,
-    color: '#666',
+    fontSize: 15,
+    color: '#778DA9',
+    fontWeight: '600',
   },
   cardBody: {
-    marginVertical: 12,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: '#f0f0f0',
-    paddingVertical: 12,
+    marginVertical: 16,
+    borderTopWidth: 2,
+    borderBottomWidth: 2,
+    borderColor: '#415A77',
+    paddingVertical: 16,
   },
   detailRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 12,
   },
   detailText: {
-    marginLeft: 8,
-    color: '#555',
-    fontSize: 14,
+    fontSize: 15,
+    color: '#E0E1DD',
+    marginLeft: 12,
+    fontWeight: '500',
   },
   cardFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 8,
+  },
+  iconButton: {
+    padding: 8,
+    borderRadius: 25,
+    backgroundColor: '#415A77',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 6,
   },
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
+    backgroundColor: 'rgba(65, 90, 119, 0.3)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 15,
   },
   statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 6,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: 8,
   },
   statusText: {
-    fontSize: 12,
-    color: '#666',
-    fontWeight: '500',
-  },
-  iconButton: {
-    padding: 6,
-    borderRadius: 20,
-    backgroundColor: '#f5f5f5',
+    fontSize: 13,
+    color: '#E0E1DD',
+    fontWeight: '600',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#0D1B2A',
     padding: 20,
     marginTop: 50,
   },
@@ -303,15 +401,15 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   emptyText: {
-    fontSize: 18,
-    color: '#555',
-    fontWeight: '500',
-    marginTop: 10,
+    fontSize: 20,
+    color: '#E0E1DD',
+    fontWeight: '700',
+    marginBottom: 8,
   },
   emptySubtext: {
-    fontSize: 14,
-    color: '#888',
-    marginTop: 5,
+    fontSize: 15,
+    color: '#778DA9',
+    fontWeight: '500',
     textAlign: 'center',
   },
 });

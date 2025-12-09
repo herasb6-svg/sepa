@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TextInput, ScrollView, TouchableOpacity, Alert 
 import { Picker } from '@react-native-picker/picker';
 import { StackScreenProps } from '@react-navigation/stack';
 import { RootEmpleadoNavigator } from '../../navigator/EmpleadoNavigator';
-import { getEmpleadoById, createEmpleado, updateEmpleado, Empleado } from '../../api/empleadoApi';
+import { getEmpleadoById, createEmpleado, Empleado } from '../../api/empleadoApi';
 import { AREAS, TURNOS, DEFAULT_EMPLEADO, AreaType, TurnoType } from '../../constants/empleado';
 
 type Props = StackScreenProps<RootEmpleadoNavigator, 'EmpleadoFormScreen'>;
@@ -53,13 +53,8 @@ const handleSubmit = async () => {
       activo: Boolean(formData.activo)
     };
 
-    if (id) {
-      await updateEmpleado(parseInt(id), empleadoData);
-      Alert.alert('Éxito', 'Empleado actualizado correctamente');
-    } else {
-      await createEmpleado(empleadoData);
-      Alert.alert('Éxito', 'Empleado creado correctamente');
-    }
+    await createEmpleado(empleadoData);
+    Alert.alert('Éxito', 'Empleado creado correctamente');
     navigation.goBack();
   } catch (error) {
     console.error('Error saving empleado:', error);
